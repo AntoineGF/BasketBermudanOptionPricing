@@ -6,7 +6,7 @@ Semester exercise for a lecture in Computational Finance at the University of St
 
 The goal is to price a Bermudan Basket Option with Longstaff-Schwarz method.
 
-Longstaff, Francis A., and Eduardo S. Schwartz. "Valuing American options by simulation: a simple least-squares approach." The review of financial studies 14.1 (2001): 113-147.
+**Reference:** Longstaff, Francis A., and Eduardo S. Schwartz. "Valuing American options by simulation: a simple least-squares approach." The review of financial studies 14.1 (2001): 113-147.
 
 ## Instructions
 
