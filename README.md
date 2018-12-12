@@ -36,4 +36,4 @@ Pricing function:
 
 You can play with parameters and run the pricing using the `PricingTest.m`. This script also produces graphs. 
 
-![Screenshot](ConfidenceIntervals.jpg)
+![Screenshot](/img/ConfidenceIntervals.jpg)
