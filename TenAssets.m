@@ -1,5 +1,6 @@
 %% Bermudean Basket
 clear all, clc
+rng default
 
 %% 10 assets Parameters
 S0= ones(1,5)*100;
@@ -18,12 +19,16 @@ corr_matrix = [
     0.1 0.2 -0.1 1 0;
     0 -0.1 0.25 0 1;];
 %% Function 
-V = BasketBermudanCall(S0, K, r, y, T, steps, nsims, sigma, corr_matrix, nexercise);
+antithetic = 0;
+high_pow = 1;
+V = BasketBermudanCall(S0, K, r, y, T, steps, nsims, sigma, corr_matrix, nexercise, antithetic, high_pow);
 disp(V)
 %% Confidence intervals: number of paths
 tic
-nsims = [10, 50, 100];
+nsims = [10, 50, 100, 200, 500, 1000];
 nexercises = [10,15,30];
+antithetic = 1;
+high_pow = 1;
 simulations = 50; %(to compute the std and then the CI)
 V = zeros(simulations, length(nsims), length(nexercises));
 
@@ -36,7 +41,7 @@ for e = 1:length(nexercises)
         for i = 1:simulations
             % Removed `rng default` in CorrelatedBrownian
             % disp(i)
-            V(i,j,e) = BasketBermudanCall(S0, K, r, y, T, steps, n, sigma, corr_matrix, nex);
+            V(i,j,e) = BasketBermudanCall(S0, K, r, y, T, steps, n, sigma, corr_matrix, nex, antithetic, high_pow);
         end
     end
 end
