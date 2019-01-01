@@ -1,4 +1,4 @@
-function V = BasketBermudanCall(S0, K, r, y, T, steps, nsims, sigma, corr_matrix, nexercise)
+function V = BasketBermudanCall(S0, K, r, y, T, steps, nsims, sigma, corr_matrix, nexercise,antithetic, high_pow)
 % Input:    S0:             initial price vector
 %           K:              strike (identical for all options)
 %           r:              risk-free rate
@@ -9,6 +9,8 @@ function V = BasketBermudanCall(S0, K, r, y, T, steps, nsims, sigma, corr_matrix
 %           sigma:          Vector of standard deviation
 %           corr_matrix:    Correlation matrix between the stocks
 %           nexercise:      Number of exercise possibility
+%           antithetic:     Dummy =1 if with antithetic variance reduction
+%           high_pow:      	Dummy =1 if regression of higher power is used
 %
 % Output:   V:              option price
 
@@ -20,7 +22,7 @@ periods = T*steps;
 ex_intervals = ceil(periods/nexercise);
 
 % Simulate stock price
-S = CorrelatedBrownian(S0,r,y,sigma,corr_matrix,T,periods,nsims);
+S = CorrelatedBrownian(S0,r,y,sigma,corr_matrix,T,periods,nsims,antithetic);
 
 % Initialize final_cash_flow
 final_cash_flow = zeros(nsims, periods);
@@ -38,6 +40,7 @@ temp_cash_flow = final_cash_flow(:, periods);
 % for t = periods:-1:2
 for t = periods:-ex_intervals:ex_intervals
     %% 1.Find two most performing assets 
+    
     [first_best, second_best] = find_most_performing(S, t + 1);
     % S1 and S2 to be used in the regression (i.e. at t-1)
     S1 = S(t,:,first_best);
@@ -47,34 +50,101 @@ for t = periods:-ex_intervals:ex_intervals
     [S1_itm, S2_itm, position] = in_the_money(S1, S2, K);
 
     %% 2. Regression
-    reg_matrix = [S1_itm; S1_itm.^2; S2_itm; S2_itm.^2; S1_itm.*S2_itm]';  
+    
+    % Regression as proposed in the exercise
+    if high_pow~=1
+  
+    reg_matrix = [S1_itm; S1_itm.^2; S2_itm; S2_itm.^2; S1_itm.*S2_itm]'; 
     cash_flow_regression = temp_cash_flow(position);
     dependent_var = exp(-r)*cash_flow_regression;
-
-    % Fit regression (sometimes, more predictor than observations ..., henCe the if)
-    if size(reg_matrix,1)>5           
+    
+    %add vector of ones for determination of  intercept 
+    x = ones(size(S1_itm,2),1);
+    reg_matrix = [x, reg_matrix]; 
+    
+    
+    % Fit regression (sometimes, more predictor than observations, hence the if)
+    if size(reg_matrix,1)>5
+        
         % Fit regression
-        ols_fit = regstats(dependent_var, reg_matrix, 'linear');
-        % Fitted value if hold (estimated value of holding)s
-        holding_value = max(ols_fit.yhat, 0);
+        ols_fit = reg_matrix\dependent_var; 
+        
+        % Fitted value if hold (estimated value of holdings)
+        holding_value = max(reg_matrix*ols_fit,0);
         
     elseif size(reg_matrix,1)>2
-        % Take only two predictors if possible
+        
+        % Take only two predictors due to potential error message
         reg_matrix = [S1_itm; S2_itm]'; 
-        ols_fit = regstats(dependent_var, reg_matrix, 'linear');
-        holding_value = max(ols_fit.yhat, 0);
+        
+        %add vector of ones for determination of  intercept 
+        x = ones(size(S1_itm,2),1);
+        reg_matrix = [x, reg_matrix]; 
+        ols_fit = reg_matrix\dependent_var;
+        holding_value = max(reg_matrix*ols_fit,0);
+        
+    else 
+         
+        holding_value = zeros(length(dependent_var),1); 
+        
+    end
+    
+    % If dummy high_pow=1 then we choose a regression of higher power
+    elseif high_pow==1  
+        
+    reg_matrix = [S1_itm; S1_itm.^2; S1_itm.^3; S2_itm; S2_itm.^2; S2_itm.^3; S1_itm.*S2_itm; S1_itm.^2.*S2_itm; S1_itm.*S2_itm.^2]';  
+    cash_flow_regression = temp_cash_flow(position);
+    dependent_var = exp(-r)*cash_flow_regression;
+    
+    %add vector of ones for determination of  intercept 
+    x = ones(size(S1_itm,2),1);
+    reg_matrix = [x, reg_matrix]; 
+
+    % Fit regression (sometimes, more predictor than observations, hence the if)
+    if size(reg_matrix,1)>9 
+        
+        % Fit regression
+        ols_fit = reg_matrix\dependent_var;
+        
+        % Fitted value if hold (estimated value of holding)s
+        holding_value = max(reg_matrix*ols_fit,0);
+        
+    elseif size(reg_matrix,1)>5
+        
+        reg_matrix = [S1_itm; S1_itm.^2; S2_itm; S2_itm.^2; S1_itm.*S2_itm]';
+        
+        %add vector of ones for determination of  intercept 
+        x = ones(size(S1_itm,2),1);
+        reg_matrix = [x, reg_matrix];
+        
+        % Fit regression
+        ols_fit = reg_matrix\dependent_var;
+        
+        % Fitted value if hold (estimated value of holding)s
+        holding_value = max(reg_matrix*ols_fit,0);
+        
+    elseif size(reg_matrix,1)>2
+        
+        % Take only two predictors if possible
+        reg_matrix = [S1_itm; S2_itm]';
+        
+        %add vector of ones for determination of  intercept 
+        x = ones(size(S1_itm,2),1);
+        reg_matrix = [x, reg_matrix];
+        
+        ols_fit = reg_matrix\dependent_var;
+        holding_value = max(reg_matrix*ols_fit,0);
         
     else 
            
         holding_value = zeros(length(dependent_var),1); 
+        
+    end           
     end
-    
-    % ols_fit = regstats(dependent_var, reg_matrix, 'linear');
 
-    % Fitted value if hold (estimated value of holding)s
-    % holding_value = max(ols_fit.yhat, 0);
     
     %% 3. Compare exercise vs hold value (strategy value)
+    
     early_exercise = max(S1_itm - K, 0);
     strategy_value = compare_strategy(early_exercise, holding_value);
 
@@ -92,6 +162,7 @@ for t = periods:-ex_intervals:ex_intervals
 end
 
 %% Clean the final cash flow 
+
 % Only the first element to appear is non-zero, otherwise zero 
 cleaned_cash_flow = clean_cash_flow(final_cash_flow);
 
